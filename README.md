@@ -2,6 +2,9 @@
 
 LivePing is a real-time network latency monitoring tool that provides a web-based interface for visualizing ping results. It features a responsive design, real-time graphing, and detailed statistics.
 
+![Liveping screenshot](docs/interface.png)
+
+
 ## Features
 
 - Real-time ping visualization with interactive graph
