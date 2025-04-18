@@ -1,0 +1,549 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ping: #{target}</title>
+    <style>
+        :root {
+            --primary-color: #007bff;
+            --text-color: #555;
+            --border-color: #ccc;
+            --background-color: #f4f4f4;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; 
+            display: flex; 
+            flex-direction: column; 
+            align-items: center; 
+            margin: 0;
+            padding: 20px;
+            background-color: var(--background-color);
+            min-height: 100vh;
+        }
+
+        h1 {
+            font-size: 1.5rem;
+            margin: 0 0 20px 0;
+            text-align: center;
+        }
+
+        #pingChart { 
+            width: 100%;
+            max-width: 800px;
+            height: auto;
+            aspect-ratio: 8/3;
+            border: 1px solid var(--border-color); 
+            background-color: #fff;
+            margin: 0 auto;
+        }
+
+        #status { 
+            margin-top: 10px; 
+            font-size: 0.9em; 
+            color: var(--text-color);
+            text-align: center;
+            width: 100%;
+            max-width: 800px;
+        }
+
+        #currentLatency { 
+            font-weight: bold; 
+        }
+
+        #stats {
+            margin-top: 20px;
+            padding: 10px;
+            background-color: #fff;
+            border: 1px solid var(--border-color);
+            border-radius: 5px;
+            width: 100%;
+            max-width: 800px;
+        }
+
+        .stat-row {
+            display: flex;
+            justify-content: space-between;
+            margin: 5px 0;
+            font-size: 0.9rem;
+        }
+
+        .stat-label {
+            font-weight: bold;
+            color: var(--text-color);
+        }
+
+        .stat-value {
+            color: var(--primary-color);
+        }
+
+        .github-link {
+            margin-top: 20px;
+            font-size: 0.9em;
+            color: var(--text-color);
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 12px;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            background-color: #fff;
+            transition: all 0.2s ease;
+            width: fit-content;
+        }
+
+        .github-link:hover {
+            color: var(--primary-color);
+            border-color: var(--primary-color);
+            transform: translateY(-1px);
+        }
+
+        .github-logo {
+            width: 20px;
+            height: 20px;
+        }
+
+        .repo-name {
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+            font-size: 0.9em;
+        }
+
+        .controls {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+            width: 100%;
+            max-width: 800px;
+            justify-content: center;
+        }
+
+        .restart-button {
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .restart-button:hover {
+            background-color: #0056b3;
+            transform: translateY(-1px);
+        }
+
+        .restart-button:active {
+            transform: translateY(0);
+        }
+
+        .restart-icon {
+            width: 16px;
+            height: 16px;
+        }
+
+        @media (max-width: 768px) {
+            body {
+                padding: 15px;
+            }
+
+            h1 {
+                font-size: 1.2rem;
+            }
+
+            #stats {
+                padding: 8px;
+            }
+
+            .stat-row {
+                font-size: 0.8rem;
+            }
+
+            #status {
+                font-size: 0.8rem;
+            }
+
+            .github-link {
+                font-size: 0.8rem;
+                padding: 6px 10px;
+            }
+
+            .github-logo {
+                width: 16px;
+                height: 16px;
+            }
+        }
+
+        @media (max-width: 480px) {
+            body {
+                padding: 10px;
+            }
+
+            h1 {
+                font-size: 1.1rem;
+            }
+
+            #stats {
+                padding: 6px;
+            }
+
+            .stat-row {
+                font-size: 0.75rem;
+            }
+
+            #status {
+                font-size: 0.75rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <h1>Ping: #{target}</h1>
+    <canvas id="pingChart" width="800" height="300"></canvas>
+    <div id="status">Status: <span id="connectionStatus">Connecting...</span> | Current Latency: <span id="currentLatency">N/A</span> ms</div>
+    
+    <div id="stats">
+        <div class="stat-row">
+            <span class="stat-label">Packets Sent:</span>
+            <span class="stat-value" id="packetsSent">0</span>
+        </div>
+        <div class="stat-row">
+            <span class="stat-label">Packets Received:</span>
+            <span class="stat-value" id="packetsRecv">0</span>
+        </div>
+        <div class="stat-row">
+            <span class="stat-label">Packet Loss:</span>
+            <span class="stat-value" id="packetLoss">0%</span>
+        </div>
+        <div class="stat-row">
+            <span class="stat-label">Min RTT:</span>
+            <span class="stat-value" id="minRtt">0 ms</span>
+        </div>
+        <div class="stat-row">
+            <span class="stat-label">Max RTT:</span>
+            <span class="stat-value" id="maxRtt">0 ms</span>
+        </div>
+        <div class="stat-row">
+            <span class="stat-label">Avg RTT:</span>
+            <span class="stat-value" id="avgRtt">0 ms</span>
+        </div>
+        <div class="stat-row">
+            <span class="stat-label">Std Dev RTT:</span>
+            <span class="stat-value" id="stdDevRtt">0 ms</span>
+        </div>
+    </div>
+
+    <div class="controls">
+        <button class="restart-button" id="restartButton">
+            <svg class="restart-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M23 4v6h-6M1 20v-6h6" stroke-linecap="round" stroke-linejoin="round"/>
+                <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            Restart Ping
+        </button>
+    </div>
+
+    <a href="https://github.com/rodrigopv/liveping" class="github-link" target="_blank">
+        <svg class="github-logo" viewBox="0 0 16 16" fill="currentColor">
+            <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"></path>
+        </svg>
+        <span class="repo-name">rodrigopv/liveping</span>
+    </a>
+
+    <script>
+        const canvas = document.getElementById('pingChart');
+        const ctx = canvas.getContext('2d');
+        const statusElement = document.getElementById('connectionStatus');
+        const latencyElement = document.getElementById('currentLatency');
+
+        // Statistics elements
+        const statsElements = {
+            packetsSent: document.getElementById('packetsSent'),
+            packetsRecv: document.getElementById('packetsRecv'),
+            packetLoss: document.getElementById('packetLoss'),
+            minRtt: document.getElementById('minRtt'),
+            maxRtt: document.getElementById('maxRtt'),
+            avgRtt: document.getElementById('avgRtt'),
+            stdDevRtt: document.getElementById('stdDevRtt')
+        };
+
+        const maxDataPoints = 100; // Number of points to show on the graph
+        const latencies = [];
+        let maxLatency = 50; // Initial max Y-axis value (ms)
+        const updateInterval = 50; // How often to redraw graph (ms) - less frequent than pings
+
+        function updateStats(stats) {
+            statsElements.packetsSent.textContent = stats.packets_sent;
+            statsElements.packetsRecv.textContent = stats.packets_recv;
+            statsElements.packetLoss.textContent = stats.packet_loss.toFixed(2) + '%';
+            statsElements.minRtt.textContent = stats.min_rtt.toFixed(2) + ' ms';
+            statsElements.maxRtt.textContent = stats.max_rtt.toFixed(2) + ' ms';
+            statsElements.avgRtt.textContent = stats.avg_rtt.toFixed(2) + ' ms';
+            statsElements.stdDevRtt.textContent = stats.std_dev_rtt.toFixed(2) + ' ms';
+        }
+
+        function drawGraph() {
+            const width = canvas.width;
+            const height = canvas.height;
+
+            // Clear canvas
+            ctx.fillStyle = '#fff';
+            ctx.fillRect(0, 0, width, height);
+
+            // Find current max latency in the visible data for dynamic scaling
+            let currentMax = 50; // Minimum axis height
+            if (latencies.length > 0) {
+                const visibleLatencies = latencies.slice(-maxDataPoints);
+                currentMax = Math.max(50, ...visibleLatencies.map(p => p.y || 0));
+            }
+            maxLatency = currentMax * 1.1; // Add 10% buffer
+
+            // Draw gridlines
+            ctx.strokeStyle = '#eee';
+            ctx.lineWidth = 1;
+
+            // Horizontal gridlines
+            const gridLines = 5;
+            for (let i = 0; i <= gridLines; i++) {
+                const y = (height - 15) - ((i / gridLines) * (height - 30));
+                ctx.beginPath();
+                ctx.moveTo(30, y);
+                ctx.lineTo(width, y);
+                ctx.stroke();
+            }
+
+            // Vertical gridlines
+            const verticalGridSpacing = (width - 30) / 10; // 10 vertical lines
+            for (let i = 0; i <= 10; i++) {
+                const x = 30 + (i * verticalGridSpacing);
+                ctx.beginPath();
+                ctx.moveTo(x, 0);
+                ctx.lineTo(x, height - 15);
+                ctx.stroke();
+            }
+
+            // Draw Y-axis labels
+            ctx.fillStyle = '#999';
+            ctx.font = '10px Arial';
+            ctx.fillText('ms', 5, 10);
+            ctx.fillText(maxLatency.toFixed(0), 5, 20);
+            ctx.fillText((maxLatency / 2).toFixed(0), 5, height / 2);
+            ctx.fillText('0', 5, height - 5);
+
+            // Draw X-axis line
+            ctx.strokeStyle = '#ccc';
+            ctx.beginPath();
+            ctx.moveTo(30, height - 15);
+            ctx.lineTo(width, height - 15);
+            ctx.stroke();
+
+            // Draw latency line and points
+            const stepX = (width - 30) / (maxDataPoints - 1);
+            let firstPoint = true;
+
+            // Draw the line for successful pings
+            ctx.strokeStyle = '#007bff';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+
+            for (let i = 0; i < latencies.length; i++) {
+                const pointIndex = latencies.length - 1 - i;
+                if (pointIndex < 0) break;
+
+                const point = latencies[pointIndex];
+                const x = width - (i * stepX);
+
+                if (x < 30) break;
+
+                if (point.y !== null && point.y >= 0) {
+                    const y = (height - 15) - ((point.y / maxLatency) * (height - 30));
+                    if (firstPoint) {
+                        ctx.moveTo(x, y);
+                        firstPoint = false;
+                    } else {
+                        ctx.lineTo(x, y);
+                    }
+                } else {
+                    firstPoint = true;
+                }
+            }
+            ctx.stroke();
+
+            // Draw points and lost packet lines
+            for (let i = 0; i < latencies.length; i++) {
+                const pointIndex = latencies.length - 1 - i;
+                if (pointIndex < 0) break;
+
+                const point = latencies[pointIndex];
+                const x = width - (i * stepX);
+
+                if (x < 30) break;
+
+                if (point.y !== null && point.y >= 0) {
+                    // Draw point for successful ping
+                    const y = (height - 15) - ((point.y / maxLatency) * (height - 30));
+                    ctx.fillStyle = '#007bff';
+                    ctx.beginPath();
+                    ctx.arc(x, y, 3, 0, Math.PI * 2);
+                    ctx.fill();
+                } else {
+                    // Draw vertical red line for lost packet
+                    ctx.save();
+                    ctx.beginPath();
+                    ctx.strokeStyle = 'rgba(255, 0, 0, 0.5)';
+                    ctx.lineWidth = 2;
+                    ctx.moveTo(x, 0);
+                    ctx.lineTo(x, height - 15);
+                    ctx.stroke();
+                    ctx.restore();
+                }
+            }
+        }
+
+        // Add restart functionality
+        const restartButton = document.getElementById('restartButton');
+        let ws = null;
+
+        function restartPing() {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send("RESTART");
+            }
+            // Clear the graph data
+            latencies.length = 0;
+            // Reset statistics display
+            Object.values(statsElements).forEach(el => {
+                if (el.id === 'packetLoss') {
+                    el.textContent = '0%';
+                } else if (el.id === 'currentLatency') {
+                    el.textContent = 'N/A';
+                } else {
+                    el.textContent = '0';
+                }
+            });
+            // Redraw empty graph
+            drawGraph();
+        }
+
+        restartButton.addEventListener('click', restartPing);
+
+        function connectWebSocket() {
+            const wsProto = window.location.protocol === "https:" ? "wss:" : "ws:";
+            const wsURL = `${wsProto}//${window.location.host}/ws`;
+            ws = new WebSocket(wsURL);
+
+            ws.onopen = () => {
+                console.log('WebSocket connected');
+                statusElement.textContent = 'Connected';
+                statusElement.style.color = 'green';
+            };
+
+            ws.onmessage = (event) => {
+                try {
+                    const message = event.data;
+                    
+                    // Check if it's a lost packet message
+                    if (message.startsWith('LOST_PACKET:')) {
+                        const seq = parseInt(message.split(':')[1]);
+                        // Add a data point with null latency to represent lost packet
+                        latencies.push({
+                            x: new Date(),
+                            y: null,
+                            seq: seq
+                        });
+                        // Keep only the last 100 points
+                        if (latencies.length > 100) {
+                            latencies.shift();
+                        }
+                        // Update current latency to N/A when packet is lost
+                        latencyElement.textContent = 'N/A';
+                        drawGraph();
+                        return;
+                    }
+                    
+                    // Check if it's a stats message
+                    if (message.startsWith('STATS:')) {
+                        const stats = JSON.parse(message.substring(6));
+                        updateStats(stats);
+                        return;
+                    }
+                    
+                    // Handle regular ping result
+                    const result = JSON.parse(message);
+                    if (result.error === "duplicate") {
+                        console.log("Duplicate packet received");
+                        return;
+                    }
+
+                    const latency = result.latency_ms;
+                    const timestamp = new Date(result.timestamp);
+                    const seq = result.seq;
+
+                    // Add to data array
+                    latencies.push({
+                        x: timestamp,
+                        y: latency,
+                        seq: seq
+                    });
+
+                    // Keep only the last 100 points
+                    if (latencies.length > 100) {
+                        latencies.shift();
+                    }
+
+                    // Update current latency display
+                    latencyElement.textContent = latency.toFixed(2);
+
+                    // Update the chart
+                    drawGraph();
+                } catch (e) {
+                    console.error('Failed to parse WebSocket message:', e);
+                }
+            };
+
+            ws.onerror = (error) => {
+                console.error('WebSocket error:', error);
+                statusElement.textContent = 'Error';
+                statusElement.style.color = 'red';
+            };
+
+            ws.onclose = () => {
+                console.log('WebSocket disconnected. Attempting to reconnect...');
+                statusElement.textContent = 'Disconnected. Retrying...';
+                statusElement.style.color = 'orange';
+                latencyElement.textContent = 'N/A';
+                setTimeout(connectWebSocket, 3000);
+            };
+        }
+
+        // Start WebSocket connection
+        connectWebSocket();
+
+        // Redraw the graph periodically
+        setInterval(drawGraph, updateInterval);
+        drawGraph(); // Initial draw
+
+        // Update canvas size on window resize
+        function resizeCanvas() {
+            const canvas = document.getElementById('pingChart');
+            const container = canvas.parentElement;
+            const width = container.clientWidth;
+            canvas.width = width;
+            canvas.height = width * 0.375; // Maintain 8:3 aspect ratio
+            drawGraph(); // Redraw with new dimensions
+        }
+
+        // Initial resize and add event listener
+        window.addEventListener('resize', resizeCanvas);
+        window.addEventListener('load', resizeCanvas);
+    </script>
+</body>
+</html>

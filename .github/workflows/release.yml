@@ -1,0 +1,52 @@
+# .github/workflows/release.yml
+name: Release Build
+
+on:
+  push:
+    branches:
+      - 'release/*'
+
+# Need write permissions to create releases and upload assets
+permissions:
+  contents: write
+
+jobs:
+  goreleaser:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Required for GoReleaser changelog generation
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24' # Match your project's go.mod
+
+      - name: Extract release version from branch
+        id: extract_version
+        run: |
+          # Extract version from branch name like release/v1.2.3
+          VERSION=$(echo "${{ github.ref }}" | sed -n 's#^refs/heads/release/\(v[0-9]\+\.[0-9]\+\.[0-9]\+.*\)$#\1#p')
+          if [[ -z "$VERSION" ]]; then
+            echo "Could not extract version (e.g., vX.Y.Z) from branch: ${{ github.ref }}"
+            echo "Ensure branch name follows the pattern 'release/vX.Y.Z'"
+            exit 1
+          fi
+          echo "tag=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Generate release notes file
+        run: echo "Draft release for ${{ steps.extract_version.outputs.tag }}" > release_notes.md
+
+      - name: Run GoReleaser
+        uses: goreleaser/goreleaser-action@v6 # Updated action version
+        with:
+          # Use the standard GoReleaser distribution
+          distribution: goreleaser
+          # Use the latest v2.x release of the GoReleaser tool
+          version: '~> v2'
+          # Pass the extracted tag and use the generated release notes file
+          args: release --clean --release-notes=release_notes.md
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} 
